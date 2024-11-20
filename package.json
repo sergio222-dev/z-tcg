@@ -1,18 +1,10 @@
 {
-    "name": "template-react-ts",
-    "description": "A Phaser 3 TypeScript project template that demonstrates React communication and uses Vite for bundling.",
+    "name": "z-tcg",
+    "description": "sample",
     "version": "1.0.3",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/phaserjs/template-react-ts.git"
-    },
     "author": "Phaser Studio <support@phaser.io> (https://phaser.io/)",
     "license": "MIT",
     "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
-    "bugs": {
-        "url": "https://github.com/phaserjs/template-react-ts/issues"
-    },
-    "homepage": "https://github.com/phaserjs/template-react-ts#readme",
     "keywords": [
         "phaser",
         "phaser3",
@@ -28,10 +20,12 @@
     },
     "dependencies": {
         "phaser": "^3.87.0",
+        "phaser-plugin-inspector": "^2.5.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     },
     "devDependencies": {
+        "@tweakpane/core": "^2.0.5",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "@typescript-eslint/eslint-plugin": "^7.13.1",
@@ -41,6 +35,7 @@
         "eslint-plugin-react-hooks": "^4.6.2",
         "eslint-plugin-react-refresh": "^0.4.7",
         "terser": "^5.28.1",
+        "tweakpane": "^3.1.10",
         "typescript": "^5.2.2",
         "vite": "^5.3.1"
     }

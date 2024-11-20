@@ -1,5 +1,5 @@
-import { EventBus } from '../EventBus';
-import { Scene } from 'phaser';
+import { EventBus } from '../../EventBus.ts';
+import { Scene }    from 'phaser';
 
 export class Game extends Scene
 {

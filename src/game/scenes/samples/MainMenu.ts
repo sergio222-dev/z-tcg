@@ -1,6 +1,6 @@
 import { GameObjects, Scene } from 'phaser';
 
-import { EventBus } from '../EventBus';
+import { EventBus } from '../../EventBus.ts';
 
 export class MainMenu extends Scene
 {
@@ -28,7 +28,7 @@ export class MainMenu extends Scene
 
         EventBus.emit('current-scene-ready', this);
     }
-    
+
     changeScene ()
     {
         if (this.logoTween)
@@ -52,7 +52,7 @@ export class MainMenu extends Scene
             {
                 this.logoTween.play();
             }
-        } 
+        }
         else
         {
             this.logoTween = this.tweens.add({
