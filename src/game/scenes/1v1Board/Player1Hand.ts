@@ -1,5 +1,5 @@
 import { Geom, Scene } from "phaser";
-import { SceneMixin }  from "../../../lib/phaser/sceneMixin.ts";
+import { SceneMixin }  from "../../../lib/phaser/mixins/sceneMixin.ts";
 import { CardOnBoard } from "../../objects/CardOnBoard.ts";
 
 export class Player1Hand extends SceneMixin(Scene) {

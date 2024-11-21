@@ -1,16 +1,20 @@
-import { GameObjects, Scene } from 'phaser'
+import * as Phaser            from "phaser";
+import { GameObjects, Scene } from "phaser";
+import { layeredObjectMixin } from "../../lib/phaser/mixins/layeredObjectMixin.ts";
 import { CardData }           from "../abstract/CardData.ts";
-import { DROPEABLE_TARGETS }  from "../enums/board.ts";
+import { FACTORY_CONFIG }     from "../config/configFactory.ts";
+import { EventBus }           from "../EventBus.ts";
 import { Board }              from "../scenes/1v1Board/Board.ts";
 import { ASPECTS, getWidth }  from "../utils/ratio.ts";
-import { HandZone }           from "./HandZone.ts";
-import Pointer = Phaser.Input.Pointer;
+import { HandContainer }      from "./HandContainer.ts";
 import Zone = Phaser.GameObjects.Zone;
+import Pointer = Phaser.Input.Pointer;
 
-export class CardOnBoard extends GameObjects.Sprite implements CardData {
+export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implements CardData {
 
   public image: string;
-  public isInHand = false;
+  public isInHand      = false;
+  public isBeingSorted = false;
 
   private aspectRatio      = ASPECTS['3/4']
   private initialHeight    = 120;
@@ -20,8 +24,8 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
   private isRotated        = false;
   private scaleOnFlip      = 1.4;
   private previousIndex?: number;
-
-  private isBeignDragged = false;
+  private handContainer: HandContainer;
+  private isBeingDragged   = false;
 
   private readonly cardBackTexture = 'card_back'
   private readonly cardTexture: string;
@@ -29,7 +33,7 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
   constructor(scene: Scene, texture: string, x?: number, y?: number) {
     super(scene, x ?? scene.scale.width / 2, y ?? scene.scale.height / 2, texture);
 
-    this.type        = 'CardOnBoard';
+    this.type        = FACTORY_CONFIG.CARD_ON_BOARD;
     this.cardTexture = texture;
     this.depth       = 10;
 
@@ -37,7 +41,6 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
       draggable: true
     })
 
-    // this.scene.input.enableDebug(this)
     const height = this.initialHeight;
 
     this.displayWidth  = getWidth(height, this.aspectRatio)
@@ -51,26 +54,89 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
   preUpdate(delta: number, time: number) {
     super.preUpdate(delta, time);
 
-    if (this.isBeignDragged && this.isInHand) {
-      const scene = this.getScene();
-      const p = this.getHandContainer();
+    // Fix the card position when is inside of the hand container
+    if (this.isBeingDragged) {
+      const scene   = this.getScene();
+      // const p       = this.getHandContainer();
       const pointer = scene.input.activePointer;
-      this.x = pointer.x - p.x;
-      this.y = pointer.y - p.y;
+      // this.x        = pointer.x - p.x;
+      // this.y        = pointer.y - p.y;
+
+      if (this.isInHand) {
+        const handContainer = this.getHandContainer();
+        const { x, y }      = handContainer.getLocalPoint(pointer.x, pointer.y);
+        this.x              = x;
+        this.y              = y;
+      } else {
+        const { x, y } = pointer;
+        this.x         = x;
+        this.y         = y;
+      }
     }
+  }
+
+  public getHandContainer(): HandContainer {
+    if (!this.handContainer) {
+      throw new Error('Card not in a hand container')
+    }
+    return this.handContainer;
+  }
+
+  public setHandContainer(handContainer: HandContainer): void {
+    this.handContainer = handContainer;
+  }
+
+  public getPreviousIndex(): number | undefined {
+    return this.previousIndex;
   }
 
   private setUpMouse() {
     this.on('dragstart', () => {
-      this.isBeignDragged = true;
+      if (this.isBeingSorted) return;
+      EventBus.emit('carddragstart', this);
+
+      const scene         = this.getScene();
+      this.isBeingDragged = true;
+
+      if (this.isInHand) {
+        const hand         = this.getHandContainer();
+        this.previousIndex = hand.getIndex(this)
+        hand.bringToTop(this);
+
+        // fix position
+        const { x, y } = scene.input.activePointer;
+        this.x         = x;
+        this.y         = y;
+      } else {
+        if (this.parentContainer) {
+          const c = this.parentContainer;
+          c.bringToTop(this);
+        } else {
+          const scene = this.getScene();
+          scene.sys.displayList.bringToTop(this)
+        }
+      }
     })
 
-    this.on('drag', (_pointer: Pointer, x: number, y: number) => {
-      this.setPosition(x, y);
-    })
+    // this.on('drag', (_pointer: Pointer, x: number, y: number) => {
+    //   if (this.isBeingSorted) return;
+    //   // fix position, I don't know why the dragX and dragY is returning values relative to the hand container
+    //   // even when this card is not in the container anymore
+    //   this.setPosition(x, y);
+    // })
 
     this.on('dragend', () => {
-      this.isBeignDragged = false;
+      this.isBeingDragged = false;
+      EventBus.emit('carddragend')
+
+      if (this.isInHand) {
+        const hand          = this.getHandContainer();
+        const previousIndex = this.getPreviousIndex();
+
+        if (previousIndex) {
+          hand.moveTo(this, previousIndex)
+        }
+      }
     })
 
     this.on('pointerover', () => {
@@ -99,10 +165,10 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
     })
 
     this.on('pointerup', () => {
-      if (!this.isInHand) return;
+      if (!this.isInHand || this.isBeingSorted) return;
 
       // go back to the hand
-      const container = this.parentContainer as HandZone
+      const container = this.getHandContainer()
 
       if (this.previousIndex) {
         container.moveTo(this, this.previousIndex)
@@ -113,24 +179,30 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
     })
 
     this.on('pointerdown', () => {
+      if (this.isBeingSorted) return;
+      EventBus.emit('movingCard', this)
+
+      // fix position
+      const scene = this.getScene();
+      this.x      = scene.input.activePointer.x;
+      this.y      = scene.input.activePointer.y;
+
       if (!this.isInHand) return;
 
       const container = this.getHandContainer()
 
       container.hideViewer()
-
-      this.previousIndex = container.getIndex(this)
-
-      container.moveTo(this, container.list.length - 1)
     })
 
     this.on('drop', (_pointer: Pointer, zone: Zone) => {
-      if (zone.type !== DROPEABLE_TARGETS.HAND_ZONE) {
+      if (zone.type !== FACTORY_CONFIG.HAND_ZONE) {
         return;
       }
 
-      const hand = zone.parentContainer as HandZone;
-      hand.addCard(this)
+      if (this.isInHand) return
+
+      const scene = this.getScene();
+      scene.addCardToHand(this);
     })
   }
 
@@ -153,10 +225,6 @@ export class CardOnBoard extends GameObjects.Sprite implements CardData {
         this.rotate();
       }
     })
-  }
-
-  private getHandContainer(): HandZone {
-    return this.parentContainer as HandZone;
   }
 
   private flipCard(): void {

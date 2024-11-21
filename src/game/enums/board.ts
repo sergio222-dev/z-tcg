@@ -1,3 +1,0 @@
-export enum DROPEABLE_TARGETS {
-  HAND_ZONE = 'HAND_ZONE',
-}

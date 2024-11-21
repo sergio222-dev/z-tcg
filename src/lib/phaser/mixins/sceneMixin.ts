@@ -1,11 +1,13 @@
-import { Scene } from "phaser";
-import GameObject = Phaser.GameObjects.GameObject;
+import { Scene, GameObjects, Structs } from "phaser";
+import GameObject = GameObjects.GameObject;
 
 type Constructor<T = Scene> = new (...args: any[]) => T
 
-type FactoryCall<T extends GameObject = GameObject> = (...args: any[]) => T
+type AnyGameObject = GameObject | Structs.List<GameObject>
 
-type FactoryConfiguration = {
+type FactoryCall<T extends AnyGameObject = AnyGameObject | Structs.List<GameObject>> = (...args: any[]) => T
+
+export type FactoryConfiguration = {
   name: string,
   factory: FactoryCall
 }
@@ -36,7 +38,7 @@ export function SceneMixin<TBase extends Constructor>(Base: TBase) {
       SceneMixin.registeredFactories.set(config.name, config.factory)
     }
 
-    addAny<T extends GameObject>(name: string, ...args: any[]): T {
+    addAny<T extends AnyGameObject >(name: string, ...args: any[]): T {
       // check if the factory exists
       if (!SceneMixin.registeredFactories.has(name)) {
         throw new Error(`No factory registered with name "${name}"`);
@@ -55,7 +57,7 @@ export function SceneMixin<TBase extends Constructor>(Base: TBase) {
       return gameObject;
     }
 
-    private isGameObject(obj: GameObject | undefined): obj is GameObject {
+    private isGameObject(obj: AnyGameObject | undefined): obj is GameObject {
       return typeof obj !== 'undefined';
 
     }

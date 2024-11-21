@@ -1,12 +1,19 @@
-import { Scene } from "phaser";
-import { SceneMixin }  from "../../../lib/phaser/sceneMixin.ts";
-import { CardOnBoard } from "../../objects/CardOnBoard.ts";
-import { HandZone }    from "../../objects/HandZone.ts";
+import { Scene }                                      from "phaser";
+import { SceneMixin }                                 from "../../../lib/phaser/mixins/sceneMixin.ts";
+import { FACTORY_CONFIG }                             from "../../config/configFactory.ts";
+import { CardOnBoardFactory, LayeredExtendedFactory } from "../../factories";
+import { CardOnBoard }                                from "../../objects/CardOnBoard.ts";
+import { HandContainer }                              from "../../objects/HandContainer.ts";
+import Clone = Phaser.Utils.Objects.Clone;
 
 export class Board extends SceneMixin(Scene) {
-  static get name (): string { return '1v1Board'; }
+  static get name(): string {
+    return '1v1Board';
+  }
 
   cardUnderPointer?: CardOnBoard;
+
+  private handContainerP1: HandContainer;
 
   constructor() {
     super(Board.name);
@@ -14,34 +21,57 @@ export class Board extends SceneMixin(Scene) {
 
   init() {
     Board.registerFactory([
-      {
-        name: 'cardOnBoard',
-        factory: function (this: Scene, x: number, y: number) {
-          return new CardOnBoard(this,'card_texture', x, y);
-        }
-      }
+      CardOnBoardFactory(),
+      LayeredExtendedFactory()
     ])
   }
 
   create() {
     this.drawDebugFeatures()
-    const z = new HandZone(this, this.scale.width / 2, this.scale.height - HandZone.HAND_ZONE_SIZES.height / 2)
-    this.children.add(z)
+
+    // set layers
+
+    // EventBus.on('movingCard', () => console.log('movingCard'))
+    // create hand zone for P1
+    const handContainer  = new HandContainer(this,
+      this.scale.width / 2,
+      this.scale.height - HandContainer.HAND_ZONE_SIZES.height / 2)
+    this.handContainerP1 = handContainer
+    this.add.existing(handContainer)
 
     const middlePoint = {
       x: this.scale.width * 0.5,
       y: this.scale.height * 0.5,
     }
 
-    for (let i = 0; i < 8; i++) {
-      this.addAny('cardOnBoard', middlePoint.x + 10 * i, middlePoint.y);
-    }
+    this.addAny(FACTORY_CONFIG.CARD_ON_BOARD, middlePoint.x + Math.random() * 500, middlePoint.y)
+    this.addAny(FACTORY_CONFIG.CARD_ON_BOARD, middlePoint.x + Math.random() * 500, middlePoint.y)
+    this.addAny(FACTORY_CONFIG.CARD_ON_BOARD, middlePoint.x + Math.random() * 500, middlePoint.y)
+    this.addAny(FACTORY_CONFIG.CARD_ON_BOARD, middlePoint.x + Math.random() * 500, middlePoint.y)
 
-    this.children.bringToTop(z)
+    // random cards
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+    handContainer.addCard(new CardOnBoard(this, 'card_texture', 0, 0))
+
+    this.children.bringToTop(handContainer)
+
+    // for (let i = 0; i < 2; i++) {
+    //   // this.addAny('cardOnBoard', middlePoint.x, middlePoint.y + Math.floor(i / 3));
+    // }
   }
 
   setCardUnderPointer(card: CardOnBoard): void {
     this.cardUnderPointer = card;
+  }
+
+  addCardToHand(card: CardOnBoard): void {
+    this.handContainerP1.addCard(card);
   }
 
   private drawDebugFeatures() {
