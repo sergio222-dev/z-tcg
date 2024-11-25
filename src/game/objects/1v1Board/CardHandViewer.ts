@@ -1,6 +1,6 @@
 import { GameObjects, Scene, Textures } from "phaser";
-import { EventBus }           from "../EventBus.ts";
-import { ASPECTS, getHeight } from "../utils/ratio.ts";
+import { EventBus }                     from "../../EventBus.ts";
+import { ASPECTS, getHeight }           from "../../utils/ratio.ts";
 import Texture = Textures.Texture;
 
 export class CardHandViewer extends GameObjects.Image {
@@ -26,7 +26,7 @@ export class CardHandViewer extends GameObjects.Image {
     this.setPosition(x, y);
     this.setTexture(texture.key)
     this.alpha = 1;
-    this.depth = 10;
+    // this.depth = 10;
 
     if (width) {
       const widthFactor = width * this.zoomFactor;

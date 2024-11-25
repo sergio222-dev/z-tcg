@@ -1,2 +1,2 @@
-export { CardOnBoardFactory }     from './CardOnBoard.ts'
-export { LayeredExtendedFactory } from './LayeredExtended.ts'
+export { CardOnBoardFactory }     from './FactoryCardOnBoard.ts'
+export { LayeredExtendedFactory } from './FactoryLayeredExtended.ts'

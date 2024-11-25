@@ -1,29 +1,38 @@
 import { GameObjects, Scene } from "phaser";
-import { FACTORY_CONFIG }     from "../config/configFactory.ts";
+import { ExtendedLayer }      from "../../../lib/phaser/classes/ExtendedLayer.ts";
+import { FACTORY_CONFIG }     from "../../config/configFactory.ts";
 import { CardHandViewer }     from "./CardHandViewer.ts";
 import { CardOnBoard }        from "./CardOnBoard.ts";
-import Zone = Phaser.GameObjects.Zone;
+import Zone = GameObjects.Zone;
 
-export class HandContainer extends GameObjects.Container {
+export class HandLayer extends ExtendedLayer {
 
-  static HAND_ZONE_SIZES   = {
+  static HAND_ZONE_SIZES    = {
     width:  600,
     height: 150,
   }
-  static MAX_CARD_DISTANCE = 100;
+  static HAND_ZONE_POSITION = {
+    x: 300,
+    y: 200,
+  }
+
+  static DEPTH = 0;
+
+  static MAX_CARD_DISTANCE  = 100;
 
   tweenEffect         = 'Bounce.easeOut'
   tweenEffectDuration = 200
 
   private viewer: CardHandViewer;
 
-  constructor(scene: Scene, x: number, y: number) {
-    super(scene, x, y, []);
-    this.type  = "HandZone";
-    this.depth = 1;
+  constructor(scene: Scene) {
+    super(scene, []);
+    this.type = "HandZone";
+    this.depth = HandLayer.DEPTH;
 
     this.createDroppableHandZone()
     this.createViewer()
+
   }
 
   get cardInHand() {
@@ -31,23 +40,33 @@ export class HandContainer extends GameObjects.Container {
   }
 
   public addCard(card: CardOnBoard) {
-    if (card.isInHand) return;
+    if (card.isInHand) {
+      // get the previous index
+      const prevIndex = card.getPreviousIndex()
 
-    if (!this.list.find(x => x === card)) {
 
-      card.isInHand = true;
-      card.setHandContainer(this);
+      if (!prevIndex) {
+        this.add(card);
+      } else {
+        this.addAt(card, prevIndex + 1);
+      }
+    } else {
+      // check if the card is in the layer
+      if (!this.list.find(x => x === card)) {
 
-      // fix position
-      // const [localX, localY] = this.transformToLocal(card.x, card.y)
-      // card.x                 = localX;
-      // card.y                 = localY;
-      this.add(card);
+        card.isInHand = true;
+        card.setHandContainer(this);
+
+        this.add(card);
+      }
     }
+
     this.sortCards();
   }
 
+
   public sortCards() {
+    console.log('sorting cards now')
     const cards = this.list.filter(x => x.type === FACTORY_CONFIG.CARD_ON_BOARD) as CardOnBoard[];
 
     cards.forEach(c => c.isBeingSorted = true);
@@ -59,8 +78,8 @@ export class HandContainer extends GameObjects.Container {
     if (cards.length === 1) {
       const fx = this.scene.tweens.add({
         targets:  cards[0],
-        x:        0,
-        y:        0,
+        x:        HandLayer.HAND_ZONE_POSITION.x,
+        y:        HandLayer.HAND_ZONE_POSITION.y,
         duration: this.tweenEffectDuration,
         ease:     this.tweenEffect
       })
@@ -73,7 +92,8 @@ export class HandContainer extends GameObjects.Container {
     }
 
     // const central_point   = HandZone.HAND_ZONE_SIZES.width * 0.5;
-    const maxCardDistance = Math.min(HandContainer.MAX_CARD_DISTANCE, (HandContainer.HAND_ZONE_SIZES.width - 50) / cards.length);
+    const maxCardDistance = Math.min(HandLayer.MAX_CARD_DISTANCE,
+      (HandLayer.HAND_ZONE_SIZES.width - HandLayer.MAX_CARD_DISTANCE / 2) / cards.length);
     const p               = maxCardDistance * 0.5;
     const N               = cards.length - 1;
 
@@ -83,8 +103,8 @@ export class HandContainer extends GameObjects.Container {
        * Formula explanation:
        *
        */
-      const x    = 0 - (p * N) + (maxCardDistance * i);
-      const y    = 0;
+      const x    = HandLayer.HAND_ZONE_POSITION.x - (p * N) + (maxCardDistance * i);
+      const y    = HandLayer.HAND_ZONE_POSITION.y;
 
       const fx = this.scene.tweens.add({
         targets:  card,
@@ -110,10 +130,10 @@ export class HandContainer extends GameObjects.Container {
   }
 
   private createDroppableHandZone() {
-    const droppableHandZone = new Zone(this.scene, 0,
-      0,
-      HandContainer.HAND_ZONE_SIZES.width,
-      HandContainer.HAND_ZONE_SIZES.height);
+    const droppableHandZone = new Zone(this.scene, HandLayer.HAND_ZONE_POSITION.x,
+      HandLayer.HAND_ZONE_POSITION.y,
+      HandLayer.HAND_ZONE_SIZES.width,
+      HandLayer.HAND_ZONE_SIZES.height);
 
     droppableHandZone.type = FACTORY_CONFIG.HAND_ZONE;
     droppableHandZone.setDropZone()
@@ -124,12 +144,8 @@ export class HandContainer extends GameObjects.Container {
   }
 
   private createViewer() {
-    this.viewer = new CardHandViewer(this.scene, this.x, this.y);
+    this.viewer = new CardHandViewer(this.scene, 0, 0);
 
     this.add(this.viewer)
   }
-
-  // private transformToLocal(x: number, y: number) {
-  //   return [x - this.x, y - this.y]
-  // }
 }

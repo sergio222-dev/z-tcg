@@ -7,7 +7,12 @@ export function layeredObjectMixin<TBase extends Constructor>(base: TBase) {
     private currentLayer: GameObjects.Layer;
 
     setCurrentLayer(layer: GameObjects.Layer): void {
+      const oldLayer = this.currentLayer;
       this.currentLayer = layer;
+
+      if (oldLayer) {
+        this.currentLayer.remove(this)
+      }
     }
 
     getCurrentLayer(): GameObjects.Layer {

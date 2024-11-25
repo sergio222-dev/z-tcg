@@ -1,12 +1,14 @@
 import * as Phaser            from "phaser";
 import { GameObjects, Scene } from "phaser";
-import { layeredObjectMixin } from "../../lib/phaser/mixins/layeredObjectMixin.ts";
-import { CardData }           from "../abstract/CardData.ts";
-import { FACTORY_CONFIG }     from "../config/configFactory.ts";
-import { EventBus }           from "../EventBus.ts";
-import { Board }              from "../scenes/1v1Board/Board.ts";
-import { ASPECTS, getWidth }  from "../utils/ratio.ts";
-import { HandContainer }      from "./HandContainer.ts";
+import { layeredObjectMixin } from "../../../lib/phaser/mixins/layeredObjectMixin.ts";
+import { CardData }           from "../../abstract/CardData.ts";
+import { FACTORY_CONFIG }     from "../../config/configFactory.ts";
+import { EventBus }           from "../../EventBus.ts";
+import { Board }              from "../../scenes/1v1Board/Board.ts";
+import { ASPECTS, getWidth }  from "../../utils/ratio.ts";
+import { HandLayer }          from "./HandLayer.ts";
+import { v4 as UUID }         from 'uuid'
+
 import Zone = Phaser.GameObjects.Zone;
 import Pointer = Phaser.Input.Pointer;
 
@@ -24,14 +26,16 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
   private isRotated        = false;
   private scaleOnFlip      = 1.4;
   private previousIndex?: number;
-  private handContainer: HandContainer;
-  private isBeingDragged   = false;
+  private handContainer: HandLayer;
+  // private isBeingDragged   = false;
 
   private readonly cardBackTexture = 'card_back'
   private readonly cardTexture: string;
 
   constructor(scene: Scene, texture: string, x?: number, y?: number) {
     super(scene, x ?? scene.scale.width / 2, y ?? scene.scale.height / 2, texture);
+
+    this.name = UUID()
 
     this.type        = FACTORY_CONFIG.CARD_ON_BOARD;
     this.cardTexture = texture;
@@ -48,41 +52,16 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
 
     this.setUpMouse()
     this.setUpKeys()
-
   }
 
-  preUpdate(delta: number, time: number) {
-    super.preUpdate(delta, time);
-
-    // Fix the card position when is inside of the hand container
-    if (this.isBeingDragged) {
-      const scene   = this.getScene();
-      // const p       = this.getHandContainer();
-      const pointer = scene.input.activePointer;
-      // this.x        = pointer.x - p.x;
-      // this.y        = pointer.y - p.y;
-
-      if (this.isInHand) {
-        const handContainer = this.getHandContainer();
-        const { x, y }      = handContainer.getLocalPoint(pointer.x, pointer.y);
-        this.x              = x;
-        this.y              = y;
-      } else {
-        const { x, y } = pointer;
-        this.x         = x;
-        this.y         = y;
-      }
-    }
-  }
-
-  public getHandContainer(): HandContainer {
+  public getHandContainer(): HandLayer {
     if (!this.handContainer) {
       throw new Error('Card not in a hand container')
     }
     return this.handContainer;
   }
 
-  public setHandContainer(handContainer: HandContainer): void {
+  public setHandContainer(handContainer: HandLayer): void {
     this.handContainer = handContainer;
   }
 
@@ -96,46 +75,44 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
       EventBus.emit('carddragstart', this);
 
       const scene         = this.getScene();
-      this.isBeingDragged = true;
+      // this.isBeingDragged = true;
 
       if (this.isInHand) {
-        const hand         = this.getHandContainer();
-        this.previousIndex = hand.getIndex(this)
-        hand.bringToTop(this);
+        const layer = this.getCurrentLayer();
 
-        // fix position
-        const { x, y } = scene.input.activePointer;
-        this.x         = x;
-        this.y         = y;
-      } else {
-        if (this.parentContainer) {
-          const c = this.parentContainer;
-          c.bringToTop(this);
-        } else {
-          const scene = this.getScene();
-          scene.sys.displayList.bringToTop(this)
+        if (!layer) {
+          throw new Error('Card not in a hand layer')
         }
+
+        this.previousIndex = layer.getIndex(this)
+        console.log(this.previousIndex)
       }
+
+
+      scene.addCartToTopLayer(this)
+      // fix position
+      const { x, y } = scene.input.activePointer;
+      this.x         = x;
+      this.y         = y;
     })
 
-    // this.on('drag', (_pointer: Pointer, x: number, y: number) => {
-    //   if (this.isBeingSorted) return;
-    //   // fix position, I don't know why the dragX and dragY is returning values relative to the hand container
-    //   // even when this card is not in the container anymore
-    //   this.setPosition(x, y);
-    // })
+    this.on('drag', (_pointer: Pointer) => {
+      if (this.isBeingSorted) return;
+      // dragX and dragY are returning incorrect values, maybe is taking on count the real width of the texture?
+      this.setPosition(_pointer.x, _pointer.y);
+    })
 
     this.on('dragend', () => {
       this.isBeingDragged = false;
       EventBus.emit('carddragend')
 
-      if (this.isInHand) {
-        const hand          = this.getHandContainer();
-        const previousIndex = this.getPreviousIndex();
+      const scene         = this.getScene();
 
-        if (previousIndex) {
-          hand.moveTo(this, previousIndex)
-        }
+      if (this.isInHand) {
+        scene.addCardToHand(this)
+      } else {
+        // moe card to the board again
+        scene.addCardToBoard(this)
       }
     })
 
@@ -143,6 +120,7 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
       this.preFX?.addGlow(0x00aa11, 1)
 
       if (this.isInHand) {
+        // TODO: viewer should work as events
         const container = this.getHandContainer()
 
         container.viewCard(this)
@@ -164,19 +142,23 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
       container.hideViewer()
     })
 
-    this.on('pointerup', () => {
-      if (!this.isInHand || this.isBeingSorted) return;
-
-      // go back to the hand
-      const container = this.getHandContainer()
-
-      if (this.previousIndex) {
-        container.moveTo(this, this.previousIndex)
-        this.previousIndex = undefined;
-      }
-
-      container.sortCards();
-    })
+    // this.on('pointerup', () => {
+    //   if (!this.isInHand || this.isBeingSorted) return;
+    //
+    //   // go back to the hand
+    //
+    //   // const scene = this.getScene();
+    //
+    //   // scene.addCardToHand(this);
+    //
+    //
+    //   // if (this.previousIndex) {
+    //   //   // container.moveTo(this, this.previousIndex)
+    //   //   // this.previousIndex = undefined;
+    //   // }
+    //
+    //   // container.sortCards();
+    // })
 
     this.on('pointerdown', () => {
       if (this.isBeingSorted) return;
@@ -187,11 +169,8 @@ export class CardOnBoard extends layeredObjectMixin(GameObjects.Sprite) implemen
       this.x      = scene.input.activePointer.x;
       this.y      = scene.input.activePointer.y;
 
-      if (!this.isInHand) return;
-
-      const container = this.getHandContainer()
-
-      container.hideViewer()
+      // TODO: should be managed by an event in the viewer, Demeter law
+      scene.hideViewer()
     })
 
     this.on('drop', (_pointer: Pointer, zone: Zone) => {
